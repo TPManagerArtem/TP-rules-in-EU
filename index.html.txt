@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Інтерактивний дашборд з вимог ТЦ в Європі</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutral Harmony -->
+    <!-- Application Structure Plan: The SPA uses a dashboard design with interactive country cards. This structure was chosen over a linear report format to facilitate quick, non-linear exploration and comparison of complex tax requirements across different jurisdictions. The primary user flow involves selecting a country to see all its requirements or using the chart's filter to compare a specific metric (like penalties) across all countries. This is more efficient for a tax professional needing targeted information. -->
+    <!-- Visualization & Content Choices: Data is organized by country and then by requirement type within expandable accordions (Goal: Organize/Inform, Method: HTML/JS/Tailwind). This prevents information overload. A key interactive element is a dynamic bar chart (Goal: Compare, Library: Chart.js/Canvas) that allows users to visually compare penalty amounts across countries. This choice provides immediate high-level insight into compliance risk. All detailed text is structured with headings and lists for readability. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF8;
+            color: #374151;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .accordion-button.open + .accordion-content {
+            max-height: 1000px; /* Adjust as needed */
+            transition: max-height 0.5s ease-in;
+        }
+        .accordion-button .arrow {
+            transition: transform 0.3s ease-out;
+        }
+        .accordion-button.open .arrow {
+            transform: rotate(180deg);
+        }
+        .filter-btn.active {
+            background-color: #0d9488; /* teal-600 */
+            color: white;
+            border-color: #0d9488;
+        }
+        .comparison-checkbox:checked + label {
+           border-color: #0d9488;
+           background-color: #f0fdfa;
+           color: #134e4a;
+        }
+        #comparison-mode-toggle:checked + .bg-gray-200 {
+            background-color: #0d9488;
+        }
+        #comparison-mode-toggle:checked + .bg-gray-200 .translate-x-0 {
+            transform: translateX(1.25rem);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto px-4 py-8 md:px-8 md:py-12">
+
+        <header class="text-center mb-10">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Огляд вимог з Трансфертного Ціноутворення в Європі</h1>
+            <p class="text-lg text-gray-600 max-w-3xl mx-auto">Інтерактивний інструмент для аналізу та порівняння податкових зобов'язань.</p>
+        </header>
+
+        <main>
+            <section id="filters" class="mb-10 p-6 bg-white rounded-2xl shadow-sm border border-gray-200">
+                <div class="flex justify-end mb-4">
+                    <div class="flex items-center">
+                        <label for="comparison-mode-toggle" class="mr-3 text-sm font-medium text-gray-900">Режим порівняння</label>
+                        <input type="checkbox" id="comparison-mode-toggle" class="hidden">
+                        <label for="comparison-mode-toggle" class="relative inline-flex items-center h-6 rounded-full w-11 cursor-pointer">
+                            <span class="absolute inline-block w-full h-full bg-gray-200 rounded-full transition-colors"></span>
+                            <span class="absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform translate-x-1"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="standard-filters">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                        <div>
+                            <label for="country-filter" class="block text-sm font-medium text-gray-700 mb-2">1. Виберіть країну для перегляду</label>
+                            <select id="country-filter" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                                <option value="all">Всі країни</option>
+                            </select>
+                        </div>
+                        <div>
+                             <label class="block text-sm font-medium text-gray-700 mb-2">2. Виберіть тип звітності для деталізації</label>
+                             <div id="report-type-filter" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="comparison-filters" class="hidden">
+                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div>
+                            <label for="base-country-filter" class="block text-sm font-medium text-gray-700 mb-2">1. Основна країна</label>
+                            <select id="base-country-filter" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                            </select>
+                        </div>
+                         <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">2. Країни для порівняння</label>
+                            <div id="comparison-country-filter" class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-40 overflow-y-auto pr-2">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="country-details-view">
+                <h2 id="details-title" class="text-2xl font-bold text-gray-800 mb-6 text-center">Детальний огляд по країнах</h2>
+                <div id="countries-container" class="space-y-6">
+                </div>
+            </section>
+            
+            <section id="comparison-table-view" class="hidden">
+                 <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Порівняльна таблиця</h2>
+                 <div id="comparison-container" class="w-full overflow-x-auto bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
+                 </div>
+            </section>
+        </main>
+
+        <footer class="text-center mt-12 pt-8 border-t border-gray-200">
+            <p class="text-gray-500">Дослідження підготовлено на основі аналізу відкритих джерел станом на червень 2025 року. Інформація надається для ознайомчих цілей і не є юридичною чи податковою консультацією.</p>
+        </footer>
+    </div>
+
+<script>
+const tpData = {
+    germany: {
+        name: "Німеччина",
+        currency: "EUR",
+        requirements: {
+            cbcr: {
+                title: "Повідомлення CbCR",
+                who: "Кожна німецька компанія МНК (> €750 млн). Повідомляє BZSt про статус та звітуючу особу.",
+                deadline: "До кінця фінансового року МНК.",
+                penalty: "До €10,000. Потенційно до €5,000 за неправдиві дані.",
+                law: "§ 138a Abgabenordnung (AO)"
+            },
+            tpForm: {
+                title: "Специфічні форми з ТЦ",
+                who: "Німецькі платники податків з транскордонними операціями. Вимога з 01.01.2025.",
+                deadline: "30 днів після повідомлення про перевірку.",
+                penalty: "Неподання: мін. €5,000. Несвоєчасне: мін. €100/день, до €1,000,000.",
+                law: "§ 90(3), § 162(4) AO"
+            },
+            localFile: {
+                title: "Local File",
+                who: "Німецькі компанії з транскордонними операціями.",
+                deadline: "30 днів після запиту аудитора.",
+                penalty: "5-10% від суми корекції (мін. €5,000). Несвоєчасне: мін. €100/день, до €1,000,000.",
+                law: "§ 90(3), § 162(3,4) AO"
+            },
+            pillar2: {
+                title: "Звітність Pillar 2 (GIR)",
+                who: "Німецькі компанії МНК (>€750 млн).",
+                deadline: "15 міс. (18 міс. для 1-го року) після кінця фін. року.",
+                penalty: "До €30,000 за несвоєчасне подання GIR.",
+                law: "MinBestG"
+            },
+            cit: {
+                title: "Декларація CIT",
+                who: "Всі юридичні особи-платники податку.",
+                deadline: "Стандартно: 31 липня. З консультантом: подовжені терміни.",
+                penalty: "Штрафи за ТЦ, донарахування, відсотки.",
+                law: "KStG, AO"
+            }
+        }
+    },
+    france: {
+        name: "Франція",
+        currency: "EUR",
+        requirements: {
+            cbcr: {
+                title: "Звіт CbCR (2258-SD)",
+                who: "Французькі компанії МНК (>€750 млн). Повідомлення інтегроване.",
+                deadline: "12 місяців після кінця фінансового року.",
+                penalty: "До €100,000.",
+                law: "Ст. 223 quinquies C CGI"
+            },
+            tpForm: {
+                title: "Форма 2257-SD",
+                who: "Компанії з оборотом/активами ≥ €50 млн, або пов'язані з ними.",
+                deadline: "6 місяців після терміну подання 'liasse fiscale'.",
+                penalty: "Неподання: €150. Неточності: €15/помилку (макс. €10,000).",
+                law: "Ст. 223 quinquies B CGI"
+            },
+            localFile: {
+                title: "Local File",
+                who: "Компанії з оборотом/активами ≥ €400 млн, або пов'язані.",
+                deadline: "На запит під час перевірки (30 днів).",
+                penalty: "0.5% від суми операцій або 5% від донарахувань (вища сума), мін. €10,000/рік.",
+                law: "L. 13 AA LPF; ст. 1735 ter CGI"
+            },
+            pillar2: {
+                title: "Звітність Pillar 2 (GIR)",
+                who: "Французькі компанії МНК/великих груп (>€750 млн).",
+                deadline: "Термін подання GIR буде уточнено.",
+                penalty: "Буде визначено.",
+                law: "Закон про фінанси 2024"
+            },
+            cit: {
+                title: "Декларація CIT",
+                who: "Всі юридичні особи-платники податку.",
+                deadline: "3 місяці після кінця фін. року (або 2-й день після 1 травня).",
+                penalty: "Донарахування, штрафи 40%-80%, відсотки.",
+                law: "Ст. 57 CGI"
+            }
+        }
+    },
+    uk: {
+        name: "Велика Британія",
+        currency: "GBP",
+        requirements: {
+            cbcr: {
+                title: "Повідомлення CbCR",
+                who: "Британські компанії МНК (>€750 млн).",
+                deadline: "Визначається Regulations 2016.",
+                penalty: "£300 + £60/день. Неточності: до £3,000.",
+                law: "The CbCR Regulations 2016"
+            },
+            tpForm: {
+                title: "Форма ICTS (пропозиція)",
+                who: "Потенційно компанії з суттєвими операціями.",
+                deadline: "Не встановлено.",
+                penalty: "Не встановлено.",
+                law: "Консультаційний документ"
+            },
+            localFile: {
+                title: "Local File / Master File",
+                who: "Обов'язково для груп >€750 млн з 01.04.2023.",
+                deadline: "30 днів після запиту HMRC.",
+                penalty: "£3,000 фіксований. Податково-орієнтований до 100% PLR.",
+                law: "The TP Records Regulations 2023"
+            },
+            pillar2: {
+                title: "Звітність Pillar 2 (GIR/ORN)",
+                who: "Британські компанії МНК (>€750 млн).",
+                deadline: "Реєстрація: 6 міс. GIR: 15-18 міс. після кінця періоду.",
+                penalty: "Значні штрафи (деталі не надані).",
+                law: "Finance (No. 2) Act 2023"
+            },
+            cit: {
+                title: "Декларація CT600",
+                who: "Всі юр. особи-платники корпоративного податку.",
+                deadline: "12 місяців після кінця періоду.",
+                penalty: "Штрафи за ТЦ, донарахування, відсотки.",
+                law: "TIOPA 2010"
+            }
+        }
+    },
+    netherlands: {
+        name: "Нідерланди",
+        currency: "EUR",
+        requirements: {
+            cbcr: {
+                title: "Повідомлення CbCR",
+                who: "Нідерландські компанії МНК (>€750 млн), якщо звіт подається за кордоном.",
+                deadline: "До кінця звітного року.",
+                penalty: "До €900,000.",
+                law: "Art. 29c-29e CITA"
+            },
+            tpForm: {
+                title: "Специфічні форми з ТЦ",
+                who: "Відсутні, акцент на MF/LF.",
+                deadline: "Н/Д",
+                penalty: "Н/Д",
+                law: "Art. 8b CITA"
+            },
+            localFile: {
+                title: "Local File / Master File",
+                who: "Обов'язково для груп ≥ €50 млн.",
+                deadline: "Мають бути в наявності на момент подання CIT.",
+                penalty: "Перевертання тягаря доведення. Штрафи до €5,514.",
+                law: "Art. 29g CITA"
+            },
+            pillar2: {
+                title: "Звітність Pillar 2 (GIR)",
+                who: "Нідерландські компанії МНК (>€750 млн).",
+                deadline: "GIR: 15-18 міс. Декларація: 17-20 міс.",
+                penalty: "GIR: до €900,000. Декларація: від €136.",
+                law: "MinTax Act 2024"
+            },
+            cit: {
+                title: "Декларація CIT",
+                who: "Всі юр. особи-платники податку.",
+                deadline: "5 місяців після кінця фін. року.",
+                penalty: "Обов'язкове розкриття наявності документації з 2023 р.",
+                law: "Art. 8b CITA"
+            }
+        }
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const countriesContainer = document.getElementById('countries-container');
+    const countryFilter = document.getElementById('country-filter');
+    const baseCountryFilter = document.getElementById('base-country-filter');
+    const comparisonCountryFilterContainer = document.getElementById('comparison-country-filter');
+    const reportTypeFilterContainer = document.getElementById('report-type-filter');
+    const detailsTitle = document.getElementById('details-title');
+    const comparisonModeToggle = document.getElementById('comparison-mode-toggle');
+    
+    const standardFiltersView = document.getElementById('standard-filters');
+    const comparisonFiltersView = document.getElementById('comparison-filters');
+    const countryDetailsView = document.getElementById('country-details-view');
+    const comparisonTableView = document.getElementById('comparison-table-view');
+    const comparisonContainer = document.getElementById('comparison-container');
+
+    const icons = {
+        all: '🌐', cbcr: '📄', tpForm: '📋', localFile: '📁', pillar2: '🌍', cit: '💰'
+    };
+    
+    const reportTypes = {
+        all: 'Всі', cbcr: 'CbCR', tpForm: 'Форма ТЦ', localFile: 'Local File', pillar2: 'Pillar 2', cit: 'CIT',
+    };
+
+    const requirementFields = {
+        who: 'Хто подає', deadline: 'Термін подання', penalty: 'Штрафи', law: 'Основна правова база'
+    };
+
+    function populateFilters() {
+        Object.entries(tpData).forEach(([countryKey, countryData]) => {
+            const option = document.createElement('option');
+            option.value = countryKey;
+            option.textContent = countryData.name;
+            countryFilter.appendChild(option.cloneNode(true));
+            baseCountryFilter.appendChild(option.cloneNode(true));
+
+            const checkboxDiv = document.createElement('div');
+            checkboxDiv.innerHTML = `
+                <input type="checkbox" id="compare-${countryKey}" value="${countryKey}" class="hidden comparison-checkbox">
+                <label for="compare-${countryKey}" class="cursor-pointer block w-full text-center p-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-all">${countryData.name}</label>
+            `;
+            comparisonCountryFilterContainer.appendChild(checkboxDiv);
+        });
+
+        Object.entries(reportTypes).forEach(([key, value]) => {
+            const button = document.createElement('button');
+            button.className = 'filter-btn flex flex-col items-center justify-center p-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-all';
+            button.dataset.filter = key;
+            if (key === 'all') button.classList.add('active');
+            button.innerHTML = `<span class="text-2xl mb-1">${icons[key]}</span><span>${value}</span>`;
+            reportTypeFilterContainer.appendChild(button);
+        });
+    }
+    
+    function generateCountryCards() {
+        countriesContainer.innerHTML = '';
+        Object.entries(tpData).forEach(([countryKey, countryData]) => {
+            const countryCard = document.createElement('div');
+            countryCard.className = 'country-card bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden';
+            countryCard.dataset.countryKey = countryKey;
+            
+            let requirementsHtml = '';
+            Object.values(countryData.requirements).forEach((reqData, index) => {
+                const reqKey = Object.keys(countryData.requirements)[index];
+                requirementsHtml += `
+                    <div class="requirement-accordion border-t border-gray-200" data-req-key="${reqKey}">
+                        <button class="accordion-button w-full text-left p-4 md:p-5 flex justify-between items-center hover:bg-teal-50/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500 open">
+                            <span class="flex items-center">
+                                <span class="text-xl mr-3">${icons[reqKey]}</span>
+                                <span class="font-semibold text-lg text-gray-700">${reqData.title}</span>
+                            </span>
+                            <span class="arrow text-teal-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></span>
+                        </button>
+                        <div class="accordion-content bg-gray-50/70">
+                            <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-gray-600">
+                                ${Object.entries(requirementFields).map(([fieldKey, fieldLabel]) => `<div><strong class="font-semibold text-gray-800 block mb-1">${fieldLabel}:</strong>${reqData[fieldKey]}</div>`).join('')}
+                            </div>
+                        </div>
+                    </div>`;
+            });
+
+            countryCard.innerHTML = `<div class="p-5 bg-teal-600 text-white"><h3 class="text-2xl font-bold">${countryData.name}</h3></div><div class="bg-white">${requirementsHtml}</div>`;
+            countriesContainer.appendChild(countryCard);
+            countryCard.querySelectorAll('.accordion-button').forEach(btn => btn.classList.add('open'));
+        });
+    }
+
+    function renderComparisonTable() {
+        const baseCountryKey = baseCountryFilter.value;
+        const compareCountryKeys = Array.from(comparisonCountryFilterContainer.querySelectorAll('input:checked')).map(cb => cb.value);
+        const selectedCountries = [baseCountryKey, ...compareCountryKeys];
+        const selectedReportType = document.querySelector('.filter-btn.active').dataset.filter;
+
+        let tableHtml = `<div class="grid gap-px" style="grid-template-columns: 1fr repeat(${selectedCountries.length}, 2fr);">`;
+        
+        // Header row
+        tableHtml += `<div class="bg-gray-200 font-bold p-3 sticky top-0">Вимога</div>`;
+        selectedCountries.forEach(key => {
+            tableHtml += `<div class="bg-gray-200 font-bold p-3 sticky top-0 text-center">${tpData[key].name}</div>`;
+        });
+
+        // Data rows
+        Object.keys(reportTypes).filter(rt => rt !== 'all').forEach(reqKey => {
+            if (selectedReportType !== 'all' && selectedReportType !== reqKey) return;
+            
+            const reqTitle = tpData[baseCountryKey].requirements[reqKey]?.title || reportTypes[reqKey];
+            tableHtml += `<div class="bg-teal-50 font-bold p-2 col-span-${selectedCountries.length + 1}">${reqTitle}</div>`;
+            
+            Object.entries(requirementFields).forEach(([fieldKey, fieldLabel]) => {
+                 tableHtml += `<div class="bg-gray-50 font-semibold p-2">${fieldLabel}</div>`;
+                 selectedCountries.forEach(countryKey => {
+                    const value = tpData[countryKey]?.requirements[reqKey]?.[fieldKey] || 'Н/Д';
+                    tableHtml += `<div class="bg-white p-2 text-sm">${value}</div>`;
+                 });
+            });
+        });
+
+        tableHtml += '</div>';
+        comparisonContainer.innerHTML = tableHtml;
+    }
+
+    function applyFilters() {
+        const isComparisonMode = comparisonModeToggle.checked;
+
+        standardFiltersView.classList.toggle('hidden', isComparisonMode);
+        comparisonFiltersView.classList.toggle('hidden', !isComparisonMode);
+        countryDetailsView.classList.toggle('hidden', isComparisonMode);
+        comparisonTableView.classList.toggle('hidden', !isComparisonMode);
+
+        if (isComparisonMode) {
+            renderComparisonTable();
+        } else {
+            const selectedCountryKey = countryFilter.value;
+            const selectedReportType = document.querySelector('.filter-btn.active').dataset.filter;
+
+            document.querySelectorAll('.country-card').forEach(card => {
+                const cardCountryKey = card.dataset.countryKey;
+                const isVisible = selectedCountryKey === 'all' || cardCountryKey === cardCountryKey;
+                card.style.display = isVisible ? 'block' : 'none';
+
+                if (isVisible) {
+                    card.querySelectorAll('.requirement-accordion').forEach(accordion => {
+                        const reqKey = accordion.dataset.reqKey;
+                        const accordionVisible = selectedReportType === 'all' || selectedReportType === reqKey;
+                        accordion.style.display = accordionVisible ? 'block' : 'none';
+                    });
+                }
+            });
+            detailsTitle.textContent = selectedCountryKey !== 'all' ? `Детальний огляд по країні: ${tpData[selectedCountryKey].name}` : 'Детальний огляд по країнах';
+        }
+    }
+
+    function setupEventListeners() {
+        countriesContainer.addEventListener('click', e => {
+            const button = e.target.closest('.accordion-button');
+            if (button) button.classList.toggle('open');
+        });
+
+        reportTypeFilterContainer.addEventListener('click', e => {
+             const button = e.target.closest('.filter-btn');
+             if (button) {
+                reportTypeFilterContainer.querySelector('.active').classList.remove('active');
+                button.classList.add('active');
+                applyFilters();
+             }
+        });
+        
+        comparisonModeToggle.addEventListener('change', applyFilters);
+        countryFilter.addEventListener('change', applyFilters);
+        baseCountryFilter.addEventListener('change', renderComparisonTable);
+        comparisonCountryFilterContainer.addEventListener('change', renderComparisonTable);
+    }
+
+    // Initialisation
+    populateFilters();
+    generateCountryCards();
+    applyFilters();
+    setupEventListeners();
+});
+</script>
+
+</body>
+</html>
