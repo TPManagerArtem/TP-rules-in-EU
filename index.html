@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Інтерактивний дашборд з вимог ТЦ в Європі</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -101,7 +100,7 @@
                     <!-- Column 2: Always visible report type filters -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Виберіть тип звітності</label>
-                         <div id="report-type-filter" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                         <div id="report-type-filter" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                          </div>
                     </div>
                 </div>
@@ -126,171 +125,403 @@
     </div>
 
 <script>
+// The tpData object holds all the compliance information.
+// It is structured for easy updates. When new research is available for a country,
+// its corresponding entry can be replaced or updated here.
 const tpData = {
-    germany: {
-        name: "Німеччина",
-        currency: "EUR",
+    // DATA FROM PDF
+    austria: {
+        name: "Австрія",
+        isEU: true,
         requirements: {
-            cbcr: {
-                title: "Повідомлення CbCR",
-                who: "Кожна німецька компанія МНК (> €750 млн). Повідомляє BZSt про статус та звітуючу особу.",
-                deadline: "До кінця фінансового року МНК.",
-                penalty: "До €10,000. Потенційно до €5,000 за неправдиві дані.",
-                law: "§ 138a Abgabenordnung (AO)"
-            },
-            tpForm: {
-                title: "Специфічні форми з ТЦ",
-                who: "Німецькі платники податків з транскордонними операціями. Вимога з 01.01.2025.",
-                deadline: "30 днів після повідомлення про перевірку.",
-                penalty: "Неподання: мін. €5,000. Несвоєчасне: мін. €100/день, до €1,000,000.",
-                law: "§ 90(3), § 162(4) AO"
-            },
             localFile: {
-                title: "Local File",
-                who: "Німецькі компанії з транскордонними операціями.",
-                deadline: "30 днів після запиту аудитора.",
-                penalty: "5-10% від суми корекції (мін. €5,000). Несвоєчасне: мін. €100/день, до €1,000,000.",
-                law: "§ 90(3), § 162(3,4) AO"
+                title: "Локальна документація з ТЦУ",
+                deadline: "30 червня 2024 (в наявності)",
+                threshold: "Виручка за два попередні фін. роки > 50 млн. євро (за кожен рік). «Спрощена» версія < 50 млн. євро",
             },
-            pillar2: {
-                title: "Звітність Pillar 2 (GIR)",
-                who: "Німецькі компанії МНК (>€750 млн).",
-                deadline: "15 міс. (18 міс. для 1-го року) після кінця фін. року.",
-                penalty: "До €30,000 за несвоєчасне подання GIR.",
-                law: "MinBestG"
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "30 червня 2024 (в наявності)",
+                threshold: "Виручка за два попередні фін. роки > 50 млн. євро (за кожен рік). «Спрощена» версія < 50 млн. євро",
             },
-            cit: {
-                title: "Декларація CIT",
-                who: "Всі юридичні особи-платники податку.",
-                deadline: "Стандартно: 31 липня. З консультантом: подовжені терміни.",
-                penalty: "Штрафи за ТЦ, донарахування, відсотки.",
-                law: "KStG, AO"
-            }
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2024",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "31 грудня 2023",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Дані потребують дослідження",
+            },
+        }
+    },
+    cyprus: {
+        name: "Кіпр",
+        isEU: true,
+        requirements: {
+            localFile: {
+                title: "Локальна документація з ТЦУ",
+                deadline: "31 березня 2024 (в наявності)",
+                threshold: ">750 тис. євро (алгоритм розрахунку підлягає підтвердженню)",
+            },
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "31 березня 2024 (в наявності)",
+                threshold: "Дані потребують дослідження",
+            },
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2023",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "31 грудня 2022",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Summary table 31 березня 2024",
+            },
+        }
+    },
+    czech: {
+        name: "Чехія",
+        isEU: true,
+        requirements: {
+            localFile: {
+                title: "Локальна документація з ТЦУ",
+                deadline: "За запитом (15 днів)",
+                threshold: "Відсутній законодавчий обов'язок підготовки (проте рекомендовано)",
+            },
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "Дані потребують дослідження",
+                threshold: "Дані потребують дослідження",
+            },
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2023",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "31 грудня 2022 (Подається виключно у перший звітний рік, далі - лише за наявності змін)",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Інформація щодо операцій із пов'язаними особами має бути включена у щорічну податкову декларацію.",
+            },
+        }
+    },
+    estonia: {
+        name: "Естонія",
+        isEU: true,
+        requirements: {
+            localFile: {
+                title: "Локальна документація з ТЦУ",
+                deadline: "31 грудня 2024 (в наявності/подання)",
+                threshold: "Фінансові/страхові компанії, операції з низькоподатковими юрисдикціями. Інші: >250 співроб., доходи >50 млн. євро, або баланс >43 млн. євро",
+            },
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "31 грудня 2024 (в наявності/подання)",
+                threshold: "Див. поріг для Локальної документації.",
+            },
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2024",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "30 червня 2024",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Дані потребують дослідження",
+            },
         }
     },
     france: {
         name: "Франція",
-        currency: "EUR",
+        isEU: true,
         requirements: {
-            cbcr: {
-                title: "Звіт CbCR (2258-SD)",
-                who: "Французькі компанії МНК (>€750 млн). Повідомлення інтегроване.",
-                deadline: "12 місяців після кінця фінансового року.",
-                penalty: "До €100,000.",
-                law: "Ст. 223 quinquies C CGI"
-            },
-            tpForm: {
-                title: "Форма 2257-SD",
-                who: "Компанії з оборотом/активами ≥ €50 млн, або пов'язані з ними.",
-                deadline: "6 місяців після терміну подання 'liasse fiscale'.",
-                penalty: "Неподання: €150. Неточності: €15/помилку (макс. €10,000).",
-                law: "Ст. 223 quinquies B CGI"
-            },
             localFile: {
-                title: "Local File",
-                who: "Компанії з оборотом/активами ≥ €400 млн, або пов'язані.",
-                deadline: "На запит під час перевірки (30 днів).",
-                penalty: "0.5% від суми операцій або 5% від донарахувань (вища сума), мін. €10,000/рік.",
-                law: "L. 13 AA LPF; ст. 1735 ter CGI"
+                title: "Локальна документація з ТЦУ",
+                deadline: "Початок травня 2024",
+                threshold: "Річна виручка або активи > 400 млн. євро. «Спрощена» версія > 50 млн. євро",
             },
-            pillar2: {
-                title: "Звітність Pillar 2 (GIR)",
-                who: "Французькі компанії МНК/великих груп (>€750 млн).",
-                deadline: "Термін подання GIR буде уточнено.",
-                penalty: "Буде визначено.",
-                law: "Закон про фінанси 2024"
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "Початок травня 2024",
+                threshold: "Річна виручка або активи > 400 млн. євро",
             },
-            cit: {
-                title: "Декларація CIT",
-                who: "Всі юридичні особи-платники податку.",
-                deadline: "3 місяці після кінця фін. року (або 2-й день після 1 травня).",
-                penalty: "Донарахування, штрафи 40%-80%, відсотки.",
-                law: "Ст. 57 CGI"
-            }
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2024",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "Інтегровано у звіт CbCR та форму 2257-SD",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Форма 2257-SD, 6 місяців після дати подання податкової декларації. Річна виручка або активи > 50 млн. євро",
+            },
         }
     },
-    uk: {
-        name: "Велика Британія",
-        currency: "GBP",
+    germany: {
+        name: "Німеччина",
+        isEU: true,
         requirements: {
-            cbcr: {
-                title: "Повідомлення CbCR",
-                who: "Британські компанії МНК (>€750 млн).",
-                deadline: "Визначається Regulations 2016.",
-                penalty: "£300 + £60/день. Неточності: до £3,000.",
-                law: "The CbCR Regulations 2016"
-            },
-            tpForm: {
-                title: "Форма ICTS (пропозиція)",
-                who: "Потенційно компанії з суттєвими операціями.",
-                deadline: "Не встановлено.",
-                penalty: "Не встановлено.",
-                law: "Консультаційний документ"
-            },
             localFile: {
-                title: "Local File / Master File",
-                who: "Обов'язково для груп >€750 млн з 01.04.2023.",
-                deadline: "30 днів після запиту HMRC.",
-                penalty: "£3,000 фіксований. Податково-орієнтований до 100% PLR.",
-                law: "The TP Records Regulations 2023"
+                title: "Локальна документація з ТЦУ",
+                deadline: "За запитом (30-60 днів)",
+                threshold: "Операції щодо товарів > 6 млн. євро. Інші операції > 600 тис. євро",
             },
-            pillar2: {
-                title: "Звітність Pillar 2 (GIR/ORN)",
-                who: "Британські компанії МНК (>€750 млн).",
-                deadline: "Реєстрація: 6 міс. GIR: 15-18 міс. після кінця періоду.",
-                penalty: "Значні штрафи (деталі не надані).",
-                law: "Finance (No. 2) Act 2023"
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "За запитом (30-60 днів)",
+                threshold: "Доходи Компанії у попередньому фінансовому році > 100 млн. євро",
             },
-            cit: {
-                title: "Декларація CT600",
-                who: "Всі юр. особи-платники корпоративного податку.",
-                deadline: "12 місяців після кінця періоду.",
-                penalty: "Штрафи за ТЦ, донарахування, відсотки.",
-                law: "TIOPA 2010"
-            }
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2023",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "31 липня 2023 (розкривається у щорічній декларації)",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Transaction Matrix (з 01.01.2025)",
+            },
         }
     },
-    netherlands: {
-        name: "Нідерланди",
-        currency: "EUR",
+    hungary: {
+        name: "Угорщина",
+        isEU: true,
         requirements: {
-            cbcr: {
-                title: "Повідомлення CbCR",
-                who: "Нідерландські компанії МНК (>€750 млн), якщо звіт подається за кордоном.",
-                deadline: "До кінця звітного року.",
-                penalty: "До €900,000.",
-                law: "Art. 29c-29e CITA"
-            },
-            tpForm: {
-                title: "Специфічні форми з ТЦ",
-                who: "Відсутні, акцент на MF/LF.",
-                deadline: "Н/Д",
-                penalty: "Н/Д",
-                law: "Art. 8b CITA"
-            },
             localFile: {
-                title: "Local File / Master File",
-                who: "Обов'язково для груп ≥ €50 млн.",
-                deadline: "Мають бути в наявності на момент подання CIT.",
-                penalty: "Перевертання тягаря доведення. Штрафи до €5,514.",
-                law: "Art. 29g CITA"
+                title: "Локальна документація з ТЦУ",
+                deadline: "31 травня 2023 (в наявності)",
+                threshold: "Обсяг транзакцій > 100 мільйонів форинтів",
             },
-            pillar2: {
-                title: "Звітність Pillar 2 (GIR)",
-                who: "Нідерландські компанії МНК (>€750 млн).",
-                deadline: "GIR: 15-18 міс. Декларація: 17-20 міс.",
-                penalty: "GIR: до €900,000. Декларація: від €136.",
-                law: "MinTax Act 2024"
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "31 грудня 2023 (в наявності)",
+                threshold: "Обсяг транзакцій > 100 мільйонів форинтів",
             },
-            cit: {
-                title: "Декларація CIT",
-                who: "Всі юр. особи-платники податку.",
-                deadline: "5 місяців після кінця фін. року.",
-                penalty: "Обов'язкове розкриття наявності документації з 2023 р.",
-                law: "Art. 8b CITA"
-            }
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2023",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "31 грудня 2022",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Форма розкриття інформації з ТЦУ 31 травня 2023",
+            },
         }
-    }
+    },
+    italy: {
+        name: "Італія",
+        isEU: true,
+        requirements: {
+            localFile: {
+                title: "Локальна документація з ТЦУ",
+                deadline: "30 листопада 2024 (в наявності)",
+                threshold: "Відсутній; підготовка для цілей 'penalty protection regime'",
+            },
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "30 листопада 2024 (в наявності)",
+                threshold: "Відсутній; підготовка для цілей 'penalty protection regime'",
+            },
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2024",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "31 жовтня 2024",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Інформація розкривається разом із декларацією про податок на прибуток",
+            },
+        }
+    },
+    latvia: {
+        name: "Латвія",
+        isEU: true,
+        requirements: {
+            localFile: {
+                title: "Локальна документація з ТЦУ",
+                deadline: "31 грудня 2024",
+                threshold: "Підготовка: опер. > 250 тис. євро, та < 5 млн. євро. Подання: > 5 млн. євро",
+            },
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "31 грудня 2024",
+                threshold: "Подання: виручка > 50 млн. євро та опер. > 5 млн. євро АБО опер. > 15 млн. євро",
+            },
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2024",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "31 грудня 2023",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Разом із декларацією про податок на прибуток (становить її частину)",
+            },
+        }
+    },
+    lithuania: {
+        name: "Литва",
+        isEU: true,
+        requirements: {
+            localFile: {
+                title: "Локальна документація з ТЦУ",
+                deadline: "15 червня 2023 (в наявності)",
+                threshold: "Внутрішньогрупові операції > 90 тис. євро",
+            },
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "15 червня 2023 (в наявності)",
+                threshold: "Минулорічна виручка > 15 млн. євро",
+            },
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2023",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "31 грудня 2022",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Форма FR0528 15 червня 2023",
+            },
+        }
+    },
+    poland: {
+        name: "Польща",
+        isEU: true,
+        requirements: {
+            localFile: {
+                title: "Локальна документація з ТЦУ",
+                deadline: "31 жовтня 2023 (в наявності)",
+                threshold: ">10 млн. злотих товари/фін. транзакції; >2 млн. злотих сервіси",
+            },
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "31 грудня 2023 (в наявності)",
+                threshold: "Дані потребують дослідження",
+            },
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2023",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "31 березня 2023",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Форма TPR-C 30 листопада 2023",
+            },
+        }
+    },
+    romania: {
+        name: "Румунія",
+        isEU: true,
+        requirements: {
+            localFile: {
+                title: "Локальна документація з ТЦУ",
+                deadline: "25 червня 2023 (в наявності)",
+                threshold: "Залежить від розміру платника податків та обсягу операцій",
+            },
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "Відсутній законодавчий обов'язок підготовки",
+                threshold: "N/A",
+            },
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2023",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "25 червня 2023",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Індикація наявності операцій у формі D394 (ПДВ)",
+            },
+        }
+    },
+    slovakia: {
+        name: "Словаччина",
+        isEU: true,
+        requirements: {
+            localFile: {
+                title: "Локальна документація з ТЦУ",
+                deadline: "31 березня 2023 (в наявності), можливе продовження",
+                threshold: "Зміст залежить від розміру компанії та обсягів операцій",
+            },
+            masterFile: {
+                title: "Майстер-файл",
+                deadline: "31 березня 2023 (в наявності), можливе продовження",
+                threshold: "Дані потребують дослідження",
+            },
+            cbcrReport: {
+                title: "Звіт в розрізі країн",
+                deadline: "31 грудня 2023",
+            },
+            cbcrNotification: {
+                title: "Повідомлення про участь в МГК",
+                deadline: "31 березня 2023, можливе продовження",
+            },
+            additionalForms: {
+                title: "Додаткові форми звітності",
+                details: "Інформація щодо операцій із пов'язаними особами щорічна податкова декларація",
+            },
+        }
+    },
+
+    // PLACEHOLDERS FOR OTHER EU COUNTRIES
+    belgium: { name: "Бельгія", isEU: true, requirements: {} },
+    bulgaria: { name: "Болгарія", isEU: true, requirements: {} },
+    croatia: { name: "Хорватія", isEU: true, requirements: {} },
+    denmark: { name: "Данія", isEU: true, requirements: {} },
+    finland: { name: "Фінляндія", isEU: true, requirements: {} },
+    greece: { name: "Греція", isEU: true, requirements: {} },
+    ireland: { name: "Ірландія", isEU: true, requirements: {} },
+    luxembourg: { name: "Люксембург", isEU: true, requirements: {} },
+    malta: { name: "Мальта", isEU: true, requirements: {} },
+    portugal: { name: "Португалія", isEU: true, requirements: {} },
+    slovenia: { name: "Словенія", isEU: true, requirements: {} },
+    spain: { name: "Іспанія", isEU: true, requirements: {} },
+    sweden: { name: "Швеція", isEU: true, requirements: {} },
+    
+    // Non-EU from PDF for context
+    uk: { 
+        name: "Велика Британія", 
+        isEU: false,
+        requirements: {
+             localFile: { title: "Локальна документація з ТЦУ", deadline: "31 грудня 2023 (в наявності)", threshold: "Відсутній", },
+             masterFile: { title: "Майстер-файл", deadline: "Відсутній законодавчий обов'язок підготовки.", threshold: "N/A", },
+             cbcrReport: { title: "Звіт в розрізі країн", deadline: "31 грудня 2023", },
+             cbcrNotification: { title: "Повідомлення про участь в МГК", deadline: "31 грудня 2023", },
+             additionalForms: { title: "Додаткові форми звітності", details: "Проект форми ICTS на розгляді", },
+        } 
+    },
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -308,20 +539,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const comparisonTableView = document.getElementById('comparison-table-view');
     const comparisonContainer = document.getElementById('comparison-container');
 
-    const icons = {
-        all: '🌐', cbcr: '📄', tpForm: '📋', localFile: '📁', pillar2: '🌍', cit: '💰'
-    };
-    
-    const reportTypes = {
-        all: 'Всі', cbcr: 'CbCR', tpForm: 'Форма ТЦ', localFile: 'Local File', pillar2: 'Pillar 2', cit: 'CIT',
+    // These keys must match the keys in the `requirements` object for each country
+    const reportKeys = {
+        all: "Всі",
+        localFile: "Локальна документація",
+        masterFile: "Майстер-файл",
+        cbcrReport: "Звіт в розрізі країн",
+        cbcrNotification: "Повідомлення про МГК",
+        additionalForms: "Додаткові форми",
+        // The following are additional categories not in the PDF but relevant.
+        // They will be populated with data from future research.
+        // pillar2: "Pillar 2",
+        // cit: "CIT",
     };
 
     const requirementFields = {
-        who: 'Хто подає', deadline: 'Термін подання', penalty: 'Штрафи', law: 'Основна правова база'
+        deadline: 'Граничний строк',
+        threshold: 'Поріг підготовки',
+        penalty: 'Штрафи',
+        law: 'Основна правова база',
+        details: 'Деталі',
+        who: 'Хто подає'
     };
 
     function populateFilters() {
-        Object.entries(tpData).forEach(([countryKey, countryData]) => {
+        const sortedCountries = Object.entries(tpData).sort(([,a], [,b]) => a.name.localeCompare(b.name));
+
+        sortedCountries.forEach(([countryKey, countryData]) => {
             const option = document.createElement('option');
             option.value = countryKey;
             option.textContent = countryData.name;
@@ -336,42 +580,46 @@ document.addEventListener('DOMContentLoaded', () => {
             comparisonCountryFilterContainer.appendChild(checkboxDiv);
         });
 
-        Object.entries(reportTypes).forEach(([key, value]) => {
+        Object.entries(reportKeys).forEach(([key, value]) => {
             const button = document.createElement('button');
             button.className = 'filter-btn flex flex-col items-center justify-center p-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-all';
             button.dataset.filter = key;
             if (key === 'all') button.classList.add('active');
-            button.innerHTML = `<span class="text-2xl mb-1">${icons[key]}</span><span>${value}</span>`;
+            button.innerHTML = `<span class="text-base">${value}</span>`;
             reportTypeFilterContainer.appendChild(button);
         });
     }
     
     function generateCountryCards() {
         countriesContainer.innerHTML = '';
-        Object.entries(tpData).forEach(([countryKey, countryData]) => {
+        const sortedCountries = Object.entries(tpData).sort(([,a], [,b]) => a.name.localeCompare(b.name));
+
+        sortedCountries.forEach(([countryKey, countryData]) => {
             const countryCard = document.createElement('div');
             countryCard.className = 'country-card bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden';
             countryCard.dataset.countryKey = countryKey;
             
             let requirementsHtml = '';
-            Object.values(countryData.requirements).forEach((reqData, index) => {
-                const reqKey = Object.keys(countryData.requirements)[index];
-                requirementsHtml += `
-                    <div class="requirement-accordion border-t border-gray-200" data-req-key="${reqKey}">
-                        <button class="accordion-button w-full text-left p-4 md:p-5 flex justify-between items-center hover:bg-teal-50/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500 open">
-                            <span class="flex items-center">
-                                <span class="text-xl mr-3">${icons[reqKey]}</span>
-                                <span class="font-semibold text-lg text-gray-700">${reqData.title}</span>
-                            </span>
-                            <span class="arrow text-teal-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></span>
-                        </button>
-                        <div class="accordion-content bg-gray-50/70">
-                            <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-gray-600">
-                                ${Object.entries(requirementFields).map(([fieldKey, fieldLabel]) => `<div><strong class="font-semibold text-gray-800 block mb-1">${fieldLabel}:</strong>${reqData[fieldKey]}</div>`).join('')}
+            if (Object.keys(countryData.requirements).length > 0) {
+                 Object.entries(countryData.requirements).forEach(([reqKey, reqData]) => {
+                    requirementsHtml += `
+                        <div class="requirement-accordion border-t border-gray-200" data-req-key="${reqKey}">
+                            <button class="accordion-button w-full text-left p-4 md:p-5 flex justify-between items-center hover:bg-teal-50/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500 open">
+                                <span class="font-semibold text-lg text-gray-700">${reportKeys[reqKey] || reqKey}</span>
+                                <span class="arrow text-teal-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></span>
+                            </button>
+                            <div class="accordion-content bg-gray-50/70">
+                                <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-gray-600 text-sm">
+                                    ${Object.entries(requirementFields).map(([fieldKey, fieldLabel]) => 
+                                        reqData[fieldKey] ? `<div><strong class="font-semibold text-gray-800 block mb-1">${fieldLabel}:</strong>${reqData[fieldKey]}</div>` : ''
+                                    ).join('')}
+                                </div>
                             </div>
-                        </div>
-                    </div>`;
-            });
+                        </div>`;
+                });
+            } else {
+                 requirementsHtml = `<div class="p-5 text-center text-gray-500">Дані потребують детального дослідження.</div>`;
+            }
 
             countryCard.innerHTML = `<div class="p-5 bg-teal-600 text-white"><h3 class="text-2xl font-bold">${countryData.name}</h3></div><div class="bg-white">${requirementsHtml}</div>`;
             countriesContainer.appendChild(countryCard);
@@ -385,7 +633,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedCountries = [baseCountryKey, ...compareCountryKeys].filter((value, index, self) => self.indexOf(value) === index); // Ensure unique countries
         const selectedReportType = document.querySelector('.filter-btn.active').dataset.filter;
 
-        let tableHtml = `<div class="grid gap-px" style="grid-template-columns: 1fr repeat(${selectedCountries.length}, 2fr);">`;
+        if (selectedCountries.length === 0 || !baseCountryKey) {
+            comparisonContainer.innerHTML = `<p class="text-center text-gray-500">Будь ласка, оберіть основну країну та країни для порівняння.</p>`;
+            return;
+        }
+
+        let tableHtml = `<div class="grid gap-px" style="grid-template-columns: minmax(150px, 1fr) repeat(${selectedCountries.length}, minmax(200px, 2fr));">`;
         
         // Header row
         tableHtml += `<div class="bg-gray-200 font-bold p-3 sticky top-0 z-10">Вимога</div>`;
@@ -394,14 +647,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Data rows
-        Object.keys(reportTypes).filter(rt => rt !== 'all').forEach(reqKey => {
+        Object.keys(reportKeys).filter(rt => rt !== 'all').forEach(reqKey => {
             if (selectedReportType !== 'all' && selectedReportType !== reqKey) return;
             
-            const reqTitle = tpData[baseCountryKey]?.requirements[reqKey]?.title || reportTypes[reqKey];
+            const reqTitle = reportKeys[reqKey];
             tableHtml += `<div class="bg-teal-50 font-bold p-2 col-span-${selectedCountries.length + 1}">${reqTitle}</div>`;
             
-            Object.entries(requirementFields).forEach(([fieldKey, fieldLabel]) => {
-                 tableHtml += `<div class="bg-gray-50 font-semibold p-2">${fieldLabel}</div>`;
+            // Determine all unique fields for this requirement type across selected countries
+            const allFieldsForReq = new Set();
+            selectedCountries.forEach(countryKey => {
+                if(tpData[countryKey]?.requirements[reqKey]){
+                    Object.keys(tpData[countryKey].requirements[reqKey]).forEach(field => allFieldsForReq.add(field));
+                }
+            });
+
+            Array.from(allFieldsForReq).forEach(fieldKey => {
+                const fieldLabel = requirementFields[fieldKey] || fieldKey;
+                 tableHtml += `<div class="bg-gray-50 font-semibold p-2 text-sm">${fieldLabel}</div>`;
                  selectedCountries.forEach(countryKey => {
                     const value = tpData[countryKey]?.requirements[reqKey]?.[fieldKey] || 'Н/Д';
                     tableHtml += `<div class="bg-white p-2 text-sm">${value}</div>`;
