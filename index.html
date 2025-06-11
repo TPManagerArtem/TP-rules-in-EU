@@ -8,15 +8,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Chosen Palette: Warm Neutral Harmony -->
-    <!-- Application Structure Plan: The SPA uses a dashboard design with interactive country cards. This structure was chosen over a linear report format to facilitate quick, non-linear exploration and comparison of complex tax requirements across different jurisdictions. The primary user flow involves selecting a country to see all its requirements or using the chart's filter to compare a specific metric (like penalties) across all countries. This is more efficient for a tax professional needing targeted information. -->
-    <!-- Visualization & Content Choices: Data is organized by country and then by requirement type within expandable accordions (Goal: Organize/Inform, Method: HTML/JS/Tailwind). This prevents information overload. A key interactive element is a dynamic bar chart (Goal: Compare, Library: Chart.js/Canvas) that allows users to visually compare penalty amounts across countries. This choice provides immediate high-level insight into compliance risk. All detailed text is structured with headings and lists for readability. -->
-    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
         body {
             font-family: 'Inter', sans-serif;
             background-color: #FDFBF8;
             color: #374151;
+        }
+        .tab-button.active {
+            border-bottom-color: #0d9488; /* teal-600 */
+            color: #0d9488;
+            font-weight: 600;
         }
         .accordion-content {
             max-height: 0;
@@ -24,19 +25,22 @@
             transition: max-height 0.3s ease-out;
         }
         .accordion-button.open + .accordion-content {
-            max-height: 1000px; /* Adjust as needed */
+            max-height: 1000px;
             transition: max-height 0.5s ease-in;
         }
         .accordion-button .arrow {
-            transition: transform 0.3s ease-out;
+            transition: transform 0.3s;
         }
         .accordion-button.open .arrow {
             transform: rotate(180deg);
         }
         .filter-btn.active {
-            background-color: #0d9488; /* teal-600 */
+            background-color: #0d9488;
             color: white;
             border-color: #0d9488;
+        }
+        .filter-btn.active:hover {
+            background-color: #0d9488;
         }
         .comparison-checkbox:checked + label {
            border-color: #0d9488;
@@ -49,6 +53,91 @@
         #comparison-mode-toggle:checked + label .toggle-dot {
             transform: translateX(1.25rem);
         }
+        
+        /* Gantt Chart Styles */
+        .gantt-container {
+             overflow-x: auto;
+             padding-bottom: 1rem;
+        }
+        .gantt-chart {
+            display: grid;
+            gap: 1px;
+            background-color: #e5e7eb; /* grid lines */
+        }
+        .gantt-header, .gantt-label, .gantt-bar-cell {
+            background-color: white;
+            padding: 0.75rem;
+            position: relative;
+        }
+        .gantt-header {
+            font-weight: 600;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background-color: #f3f4f6;
+        }
+        .gantt-label {
+            font-weight: 500;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .gantt-bubble {
+            position: absolute;
+            top: 50%;
+            width: 22px;
+            height: 22px;
+            background-color: #ef4444; /* red-500 */
+            border-radius: 50%;
+            border: 2px solid white;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        }
+        /* *** MODIFICATION: Increased z-index on hover to fix tooltip overlap *** */
+        .gantt-bubble:hover {
+            z-index: 15;
+        }
+        .gantt-bubble:hover .gantt-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+        .gantt-tooltip {
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s;
+            position: absolute;
+            bottom: 125%; 
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #1f2937; /* gray-800 */
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            z-index: 20;
+        }
+        .today-marker {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background-color: #10b981; /* green-500 */
+            z-index: 1;
+            transform: translateX(-50%);
+            cursor: pointer;
+        }
+        /* *** MODIFICATION: Added hover state for today-marker tooltip *** */
+        .today-marker:hover .gantt-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -57,542 +146,250 @@
 
         <header class="text-center mb-10">
             <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Огляд вимог з Трансфертного Ціноутворення в Європі</h1>
-            <p class="text-lg text-gray-600 max-w-3xl mx-auto">Інтерактивний інструмент для аналізу та порівняння податкових зобов'язань.</p>
+            <p class="text-lg text-gray-600 max-w-3xl mx-auto">Інтерактивний інструмент для аналізу, порівняння та планування.</p>
         </header>
 
+        <!-- Tab Navigation -->
+        <nav class="flex border-b border-gray-200 mb-8">
+            <button data-tab="overview" class="tab-button py-4 px-6 text-gray-500 border-b-2 border-transparent hover:text-gray-700 active">Огляд та порівняння</button>
+            <button data-tab="calendar" class="tab-button py-4 px-6 text-gray-500 border-b-2 border-transparent hover:text-gray-700">Календар дедлайнів</button>
+        </nav>
+
         <main>
-            <section id="filters" class="mb-10 p-6 bg-white rounded-2xl shadow-sm border border-gray-200">
-                <div class="flex justify-end mb-6">
-                    <div class="flex items-center">
-                        <label for="comparison-mode-toggle" class="mr-3 text-sm font-medium text-gray-900">Режим порівняння</label>
-                        <input type="checkbox" id="comparison-mode-toggle" class="hidden">
-                        <label for="comparison-mode-toggle" class="relative inline-flex items-center h-6 rounded-full w-11 cursor-pointer">
-                            <span class="toggle-bg absolute inline-block w-full h-full bg-gray-200 rounded-full transition-colors"></span>
-                            <span class="toggle-dot absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform translate-x-1"></span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                    <!-- Column 1: Mode-dependent filters -->
-                    <div>
-                        <div id="standard-filters">
-                             <label for="country-filter" class="block text-sm font-medium text-gray-700 mb-2">Виберіть країну для перегляду</label>
-                             <select id="country-filter" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
-                                 <option value="all">Всі країни</option>
-                             </select>
-                        </div>
-
-                        <div id="comparison-filters" class="hidden space-y-6">
-                             <div>
-                                 <label for="base-country-filter" class="block text-sm font-medium text-gray-700 mb-2">1. Основна країна</label>
-                                 <select id="base-country-filter" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
-                                 </select>
-                             </div>
-                              <div>
-                                 <label class="block text-sm font-medium text-gray-700 mb-2">2. Країни для порівняння</label>
-                                 <div id="comparison-country-filter" class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-40 overflow-y-auto pr-2">
-                                 </div>
-                             </div>
+            <!-- Tab 1: Overview and Comparison -->
+            <div id="overview-tab-content">
+                <section id="filters" class="mb-10 p-6 bg-white rounded-2xl shadow-sm border border-gray-200">
+                    <div class="flex justify-end mb-6">
+                        <div class="flex items-center">
+                            <label for="comparison-mode-toggle" class="mr-3 text-sm font-medium text-gray-900">Режим порівняння</label>
+                            <input type="checkbox" id="comparison-mode-toggle" class="hidden">
+                            <label for="comparison-mode-toggle" class="relative inline-flex items-center h-6 rounded-full w-11 cursor-pointer">
+                                <span class="toggle-bg absolute inline-block w-full h-full bg-gray-200 rounded-full transition-colors"></span>
+                                <span class="toggle-dot absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform translate-x-1"></span>
+                            </label>
                         </div>
                     </div>
-
-                    <!-- Column 2: Always visible report type filters -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Виберіть тип звітності</label>
-                         <div id="report-type-filter" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                         </div>
+                    <div id="overview-filters-container">
+                        <!-- Filters will be populated by JS -->
                     </div>
-                </div>
-            </section>
-            
-            <section id="country-details-view">
-                <h2 id="details-title" class="text-2xl font-bold text-gray-800 mb-6 text-center">Детальний огляд по країнах</h2>
-                <div id="countries-container" class="space-y-6">
-                </div>
-            </section>
-            
-            <section id="comparison-table-view" class="hidden">
-                 <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Порівняльна таблиця</h2>
-                 <div id="comparison-container" class="w-full overflow-x-auto bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
-                 </div>
-            </section>
+                </section>
+                
+                <section id="country-details-view">
+                    <h2 id="details-title" class="text-2xl font-bold text-gray-800 mb-6 text-center">Детальний огляд по країнах</h2>
+                    <div id="countries-container" class="space-y-6"></div>
+                </section>
+                
+                <section id="comparison-table-view" class="hidden">
+                     <h2 id="comparison-title" class="text-2xl font-bold text-gray-800 mb-6 text-center">Порівняльна таблиця</h2>
+                     <div id="comparison-container" class="w-full overflow-x-auto bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
+                         <!-- Comparison table will be populated here -->
+                     </div>
+                </section>
+            </div>
+
+            <!-- Tab 2: Deadline Calendar -->
+            <div id="calendar-tab-content" class="hidden">
+                 <section id="calendar-filters" class="mb-10 p-6 bg-white rounded-2xl shadow-sm border border-gray-200">
+                    <div id="calendar-filters-container" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 items-start">
+                        <!-- Calendar-specific filters will be populated by JS -->
+                    </div>
+                 </section>
+                 <section id="gantt-chart-view">
+                     <h2 id="gantt-title" class="text-2xl font-bold text-gray-800 mb-6 text-center">Календар дедлайнів</h2>
+                     <div id="gantt-container" class="gantt-container"></div>
+                 </section>
+            </div>
         </main>
 
         <footer class="text-center mt-12 pt-8 border-t border-gray-200">
-            <p class="text-gray-500">Дослідження підготовлено на основі аналізу відкритих джерел станом на червень 2025 року. Інформація надається для ознайомчих цілей і не є юридичною чи податковою консультацією.</p>
+            <p class="text-gray-500">Дослідження підготовлено на основі аналізу відкритих джерел. Інформація надається для ознайомчих цілей і не є юридичною чи податковою консультацією.</p>
         </footer>
     </div>
 
 <script>
-// The tpData object holds all the compliance information.
-// It is structured for easy updates. When new research is available for a country,
-// its corresponding entry can be replaced or updated here.
+// Data is now structured by reporting year.
 const tpData = {
-    // DATA FROM PDF
-    austria: {
-        name: "Австрія",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "30 червня 2024 (в наявності)",
-                threshold: "Виручка за два попередні фін. роки > 50 млн. євро (за кожен рік). «Спрощена» версія < 50 млн. євро",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "30 червня 2024 (в наявності)",
-                threshold: "Виручка за два попередні фін. роки > 50 млн. євро (за кожен рік). «Спрощена» версія < 50 млн. євро",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2024",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "31 грудня 2023",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Дані потребують дослідження",
-            },
-        }
+    "2022": {
+        austria: { name: "Австрія", isEU: true, requirements: { localFile: { deadline: "30 червня 2024 (в наявності)", threshold: "Виручка > 50 млн. євро" }, masterFile: { deadline: "30 червня 2024 (в наявності)", threshold: "Виручка > 50 млн. євро" }, cbcrNotification: { deadline: "31 грудня 2023" }, tpForm: { details: "Дані потребують дослідження" }, pillar2: { details: "Дані потребують дослідження" } } },
+        cyprus: { name: "Кіпр", isEU: true, requirements: { localFile: { deadline: "31 березня 2024 (в наявності)", threshold: ">750 тис. євро" }, masterFile: { deadline: "31 березня 2024 (в наявності)", threshold: "Дані потребують дослідження" }, cbcrNotification: { deadline: "31 грудня 2022" }, tpForm: { details: "Summary table 31 березня 2024" }, pillar2: { details: "Дані потребують дослідження" } } },
+        czech: { name: "Чехія", isEU: true, requirements: { localFile: { deadline: "За запитом (15 днів)", threshold: "Рекомендовано" }, masterFile: { deadline: "Дані потребують дослідження", threshold: "Дані потребують дослідження" }, cbcrNotification: { deadline: "31 грудня 2022 (лише за наявності змін)" }, tpForm: { details: "Частина податкової декларації" }, pillar2: { details: "Дані потребують дослідження" } } },
+        estonia: { name: "Естонія", isEU: true, requirements: { localFile: { deadline: "31 грудня 2024 (в наявності/подання)", threshold: "Великі платники" }, masterFile: { deadline: "31 грудня 2024 (в наявності/подання)", threshold: "Великі платники" }, cbcrNotification: { deadline: "30 червня 2024" }, tpForm: { details: "Дані потребують дослідження" }, pillar2: { details: "Дані потребують дослідження" } } },
+        france: { name: "Франція", isEU: true, requirements: { localFile: { deadline: "Початок травня 2024", threshold: "Виручка > 400 млн. євро" }, masterFile: { deadline: "Початок травня 2024", threshold: "Виручка > 400 млн. євро" }, cbcrNotification: { deadline: "Інтегровано у CbCR/форму 2257-SD" }, tpForm: { deadline: "6 міс. після декларації", details: "Форма 2257-SD" }, pillar2: { details: "Дані потребують дослідження" } } },
+        hungary: { name: "Угорщина", isEU: true, requirements: { localFile: { deadline: "31 травня 2023 (в наявності)", threshold: "Транзакції > 100 млн. форинтів" }, masterFile: { deadline: "31 грудня 2023 (в наявності)", threshold: "Транзакції > 100 млн. форинтів" }, cbcrNotification: { deadline: "31 грудня 2022" }, tpForm: { deadline: "31 травня 2023", details: "Форма розкриття інформації" }, pillar2: { details: "Дані потребують дослідження" } } },
+        poland: { name: "Польща", isEU: true, requirements: { localFile: { deadline: "31 жовтня 2023 (в наявності)", threshold: "Операції >10/2 млн. злотих" }, masterFile: { deadline: "31 грудня 2023 (в наявності)", threshold: "Дані потребують дослідження" }, cbcrNotification: { deadline: "31 березня 2023" }, tpForm: { deadline: "30 листопада 2023", details: "Форма TPR-C" }, pillar2: { details: "Дані потребують дослідження" } } },
     },
-    cyprus: {
-        name: "Кіпр",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "31 березня 2024 (в наявності)",
-                threshold: ">750 тис. євро (алгоритм розрахунку підлягає підтвердженню)",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "31 березня 2024 (в наявності)",
-                threshold: "Дані потребують дослідження",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2023",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "31 грудня 2022",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Summary table 31 березня 2024",
-            },
-        }
-    },
-    czech: {
-        name: "Чехія",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "За запитом (15 днів)",
-                threshold: "Відсутній законодавчий обов'язок підготовки (проте рекомендовано)",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "Дані потребують дослідження",
-                threshold: "Дані потребують дослідження",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2023",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "31 грудня 2022 (Подається виключно у перший звітний рік, далі - лише за наявності змін)",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Інформація щодо операцій із пов'язаними особами має бути включена у щорічну податкову декларацію.",
-            },
-        }
-    },
-    estonia: {
-        name: "Естонія",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "31 грудня 2024 (в наявності/подання)",
-                threshold: "Фінансові/страхові компанії, операції з низькоподатковими юрисдикціями. Інші: >250 співроб., доходи >50 млн. євро, або баланс >43 млн. євро",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "31 грудня 2024 (в наявності/подання)",
-                threshold: "Див. поріг для Локальної документації.",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2024",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "30 червня 2024",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Дані потребують дослідження",
-            },
-        }
-    },
-    france: {
-        name: "Франція",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "Початок травня 2024",
-                threshold: "Річна виручка або активи > 400 млн. євро. «Спрощена» версія > 50 млн. євро",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "Початок травня 2024",
-                threshold: "Річна виручка або активи > 400 млн. євро",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2024",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "Інтегровано у звіт CbCR та форму 2257-SD",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Форма 2257-SD, 6 місяців після дати подання податкової декларації. Річна виручка або активи > 50 млн. євро",
-            },
-        }
-    },
-    germany: {
-        name: "Німеччина",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "За запитом (30-60 днів)",
-                threshold: "Операції щодо товарів > 6 млн. євро. Інші операції > 600 тис. євро",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "За запитом (30-60 днів)",
-                threshold: "Доходи Компанії у попередньому фінансовому році > 100 млн. євро",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2023",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "31 липня 2023 (розкривається у щорічній декларації)",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Transaction Matrix (з 01.01.2025)",
-            },
-        }
-    },
-    hungary: {
-        name: "Угорщина",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "31 травня 2023 (в наявності)",
-                threshold: "Обсяг транзакцій > 100 мільйонів форинтів",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "31 грудня 2023 (в наявності)",
-                threshold: "Обсяг транзакцій > 100 мільйонів форинтів",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2023",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "31 грудня 2022",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Форма розкриття інформації з ТЦУ 31 травня 2023",
-            },
-        }
-    },
-    italy: {
-        name: "Італія",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "30 листопада 2024 (в наявності)",
-                threshold: "Відсутній; підготовка для цілей 'penalty protection regime'",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "30 листопада 2024 (в наявності)",
-                threshold: "Відсутній; підготовка для цілей 'penalty protection regime'",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2024",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "31 жовтня 2024",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Інформація розкривається разом із декларацією про податок на прибуток",
-            },
-        }
-    },
-    latvia: {
-        name: "Латвія",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "31 грудня 2024",
-                threshold: "Підготовка: опер. > 250 тис. євро, та < 5 млн. євро. Подання: > 5 млн. євро",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "31 грудня 2024",
-                threshold: "Подання: виручка > 50 млн. євро та опер. > 5 млн. євро АБО опер. > 15 млн. євро",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2024",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "31 грудня 2023",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Разом із декларацією про податок на прибуток (становить її частину)",
-            },
-        }
-    },
-    lithuania: {
-        name: "Литва",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "15 червня 2023 (в наявності)",
-                threshold: "Внутрішньогрупові операції > 90 тис. євро",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "15 червня 2023 (в наявності)",
-                threshold: "Минулорічна виручка > 15 млн. євро",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2023",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "31 грудня 2022",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Форма FR0528 15 червня 2023",
-            },
-        }
-    },
-    poland: {
-        name: "Польща",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "31 жовтня 2023 (в наявності)",
-                threshold: ">10 млн. злотих товари/фін. транзакції; >2 млн. злотих сервіси",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "31 грудня 2023 (в наявності)",
-                threshold: "Дані потребують дослідження",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2023",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "31 березня 2023",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Форма TPR-C 30 листопада 2023",
-            },
-        }
-    },
-    romania: {
-        name: "Румунія",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "25 червня 2023 (в наявності)",
-                threshold: "Залежить від розміру платника податків та обсягу операцій",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "Відсутній законодавчий обов'язок підготовки",
-                threshold: "N/A",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2023",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "25 червня 2023",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Індикація наявності операцій у формі D394 (ПДВ)",
-            },
-        }
-    },
-    slovakia: {
-        name: "Словаччина",
-        isEU: true,
-        requirements: {
-            localFile: {
-                title: "Локальна документація з ТЦУ",
-                deadline: "31 березня 2023 (в наявності), можливе продовження",
-                threshold: "Зміст залежить від розміру компанії та обсягів операцій",
-            },
-            masterFile: {
-                title: "Майстер-файл",
-                deadline: "31 березня 2023 (в наявності), можливе продовження",
-                threshold: "Дані потребують дослідження",
-            },
-            cbcrReport: {
-                title: "Звіт в розрізі країн",
-                deadline: "31 грудня 2023",
-            },
-            cbcrNotification: {
-                title: "Повідомлення про участь в МГК",
-                deadline: "31 березня 2023, можливе продовження",
-            },
-            additionalForms: {
-                title: "Додаткові форми звітності",
-                details: "Інформація щодо операцій із пов'язаними особами щорічна податкова декларація",
-            },
-        }
-    },
-
-    // PLACEHOLDERS FOR OTHER EU COUNTRIES
-    belgium: { name: "Бельгія", isEU: true, requirements: {} },
-    bulgaria: { name: "Болгарія", isEU: true, requirements: {} },
-    croatia: { name: "Хорватія", isEU: true, requirements: {} },
-    denmark: { name: "Данія", isEU: true, requirements: {} },
-    finland: { name: "Фінляндія", isEU: true, requirements: {} },
-    greece: { name: "Греція", isEU: true, requirements: {} },
-    ireland: { name: "Ірландія", isEU: true, requirements: {} },
-    luxembourg: { name: "Люксембург", isEU: true, requirements: {} },
-    malta: { name: "Мальта", isEU: true, requirements: {} },
-    portugal: { name: "Португалія", isEU: true, requirements: {} },
-    slovenia: { name: "Словенія", isEU: true, requirements: {} },
-    spain: { name: "Іспанія", isEU: true, requirements: {} },
-    sweden: { name: "Швеція", isEU: true, requirements: {} },
-    
-    // Non-EU from PDF for context
-    uk: { 
-        name: "Велика Британія", 
-        isEU: false,
-        requirements: {
-             localFile: { title: "Локальна документація з ТЦУ", deadline: "31 грудня 2023 (в наявності)", threshold: "Відсутній", },
-             masterFile: { title: "Майстер-файл", deadline: "Відсутній законодавчий обов'язок підготовки.", threshold: "N/A", },
-             cbcrReport: { title: "Звіт в розрізі країн", deadline: "31 грудня 2023", },
-             cbcrNotification: { title: "Повідомлення про участь в МГК", deadline: "31 грудня 2023", },
-             additionalForms: { title: "Додаткові форми звітності", details: "Проект форми ICTS на розгляді", },
-        } 
-    },
+    "2023": { // Example data for another year
+        austria: { name: "Австрія", isEU: true, requirements: { localFile: { deadline: "30 червня 2025 (в наявності)", threshold: "Виручка > 55 млн. євро" }, masterFile: { deadline: "30 червня 2025 (в наявності)", threshold: "Виручка > 55 млн. євро" }, cbcrNotification: { deadline: "31 грудня 2024" }, pillar2: { deadline: "31 грудня 2025", details: "Впроваджено" } } },
+        france: { name: "Франція", isEU: true, requirements: { localFile: { deadline: "Початок травня 2025", threshold: "Виручка > 400 млн. євро" }, pillar2: { deadline: "31 грудня 2025", details: "Впроваджено" } } },
+    }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Global Elements ---
     const countriesContainer = document.getElementById('countries-container');
-    const countryFilter = document.getElementById('country-filter');
-    const baseCountryFilter = document.getElementById('base-country-filter');
-    const comparisonCountryFilterContainer = document.getElementById('comparison-country-filter');
-    const reportTypeFilterContainer = document.getElementById('report-type-filter');
     const detailsTitle = document.getElementById('details-title');
     const comparisonModeToggle = document.getElementById('comparison-mode-toggle');
-    
-    const standardFiltersView = document.getElementById('standard-filters');
-    const comparisonFiltersView = document.getElementById('comparison-filters');
     const countryDetailsView = document.getElementById('country-details-view');
     const comparisonTableView = document.getElementById('comparison-table-view');
     const comparisonContainer = document.getElementById('comparison-container');
+    const comparisonTitle = document.getElementById('comparison-title');
+    const tabs = document.querySelectorAll('.tab-button');
+    const tabContents = { overview: document.getElementById('overview-tab-content'), calendar: document.getElementById('calendar-tab-content') };
+    const ganttContainer = document.getElementById('gantt-container');
+    const ganttTitle = document.getElementById('gantt-title');
+    
+    // --- Filter Containers ---
+    const overviewFilters = document.getElementById('overview-filters-container');
+    const calendarFilters = document.getElementById('calendar-filters-container');
 
-    // These keys must match the keys in the `requirements` object for each country
-    const reportKeys = {
-        all: "Всі",
-        localFile: "Локальна документація",
-        masterFile: "Майстер-файл",
-        cbcrReport: "Звіт в розрізі країн",
-        cbcrNotification: "Повідомлення про МГК",
-        additionalForms: "Додаткові форми",
-        // The following are additional categories not in the PDF but relevant.
-        // They will be populated with data from future research.
-        // pillar2: "Pillar 2",
-        // cit: "CIT",
-    };
+    // --- Data and Config ---
+    const reportKeys = { all: "Всі", tpForm: "TP Form", localFile: "Local File", masterFile: "Master File", cbcrNotification: "CbCR Notification", pillar2: "Pillar 2" };
+    const orderedReportKeys = ['tpForm', 'localFile', 'masterFile', 'cbcrNotification', 'pillar2'];
+    const requirementFields = { deadline: 'Граничний строк', threshold: 'Поріг підготовки', penalty: 'Штрафи', law: 'Основна правова база', details: 'Деталі', who: 'Хто подає' };
+    const monthMap = { 'січня': 0, 'лютого': 1, 'березня': 2, 'квітня': 3, 'травня': 4, 'червня': 5, 'липня': 6, 'серпня': 7, 'вересня': 8, 'жовтня': 9, 'листопада': 10, 'грудня': 11 };
+    
+    // --- Initial State ---
+    let activeTab = 'overview';
 
-    const requirementFields = {
-        deadline: 'Граничний строк',
-        threshold: 'Поріг підготовки',
-        penalty: 'Штрафи',
-        law: 'Основна правова база',
-        details: 'Деталі',
-        who: 'Хто подає'
-    };
+    function createYearFilter() {
+        const yearSelect = document.createElement('select');
+        yearSelect.className = "year-filter w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500";
+        const years = Object.keys(tpData).sort((a,b) => b-a);
+        years.forEach(year => yearSelect.innerHTML += `<option value="${year}">${year}</option>`);
+        return yearSelect;
+    }
 
-    function populateFilters() {
-        const sortedCountries = Object.entries(tpData).sort(([,a], [,b]) => a.name.localeCompare(b.name));
+    function createCountryFilter(year, cssClass = '') {
+        const countrySelect = document.createElement('select');
+        countrySelect.className = `${cssClass} w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500`;
+        countrySelect.innerHTML = `<option value="all">Всі країни</option>`;
+        if(tpData[year]) {
+            const sortedCountries = Object.entries(tpData[year]).sort(([,a], [,b]) => a.name.localeCompare(b.name));
+            sortedCountries.forEach(([key, data]) => countrySelect.innerHTML += `<option value="${key}">${data.name}</option>`);
+        }
+        return countrySelect;
+    }
 
-        sortedCountries.forEach(([countryKey, countryData]) => {
-            const option = document.createElement('option');
-            option.value = countryKey;
-            option.textContent = countryData.name;
-            countryFilter.appendChild(option.cloneNode(true));
-            baseCountryFilter.appendChild(option.cloneNode(true));
-
-            const checkboxDiv = document.createElement('div');
-            checkboxDiv.innerHTML = `
-                <input type="checkbox" id="compare-${countryKey}" value="${countryKey}" class="hidden comparison-checkbox">
-                <label for="compare-${countryKey}" class="cursor-pointer block w-full text-center p-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-all">${countryData.name}</label>
-            `;
-            comparisonCountryFilterContainer.appendChild(checkboxDiv);
+    function createReportTypeFilter() {
+        const reportTypeContainer = document.createElement('div');
+        reportTypeContainer.className = "report-type-filter grid grid-cols-3 gap-3";
+        let reportButtonsHtml = `<button class="filter-btn h-14 flex items-center justify-center p-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 active" data-filter="all">Всі</button>`;
+        orderedReportKeys.forEach(key => {
+            reportButtonsHtml += `<button class="filter-btn h-14 flex items-center justify-center p-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50" data-filter="${key}">${reportKeys[key]}</button>`;
         });
+        reportTypeContainer.innerHTML = reportButtonsHtml;
+        return reportTypeContainer;
+    }
 
-        Object.entries(reportKeys).forEach(([key, value]) => {
-            const button = document.createElement('button');
-            button.className = 'filter-btn flex flex-col items-center justify-center p-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-all';
-            button.dataset.filter = key;
-            if (key === 'all') button.classList.add('active');
-            button.innerHTML = `<span class="text-base">${value}</span>`;
-            reportTypeFilterContainer.appendChild(button);
-        });
+    function populateOverviewFilters(year) {
+        overviewFilters.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 items-start">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Звітний рік</label>
+                        <div class="year-filter-wrapper"></div>
+                    </div>
+                    <div id="country-filters-wrapper">
+                        <div id="standard-filters">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Країна</label>
+                            <div class="standard-country-filter-wrapper"></div>
+                        </div>
+                        <div id="comparison-filters" class="hidden space-y-4">
+                            <div>
+                                 <label class="block text-sm font-medium text-gray-700 mb-2">1. Основна країна</label>
+                                 <div class="base-country-filter-wrapper"></div>
+                            </div>
+                             <div>
+                                 <label class="block text-sm font-medium text-gray-700 mb-2">2. Країни для порівняння</label>
+                                 <div class="comparison-country-filter-wrapper grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"></div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                     <label class="block text-sm font-medium text-gray-700 mb-2">Тип звітності</label>
+                     <div class="report-filter-wrapper"></div>
+                </div>
+            </div>`;
+        
+        const yearFilter = createYearFilter();
+        yearFilter.value = year;
+        const reportFilter = createReportTypeFilter();
+        overviewFilters.querySelector('.year-filter-wrapper').appendChild(yearFilter);
+        overviewFilters.querySelector('.report-filter-wrapper').appendChild(reportFilter);
+
+        updateAllCountrySelects(year);
     }
     
+    function populateCalendarFilters(year) {
+        const yearFilter = createYearFilter();
+        yearFilter.value = year;
+        const countryFilter = createCountryFilter(year, 'country-filter');
+        const reportFilter = createReportTypeFilter();
+        
+        calendarFilters.innerHTML = `
+            <div class="space-y-4">
+                <div>
+                     <label class="block text-sm font-medium text-gray-700 mb-2">Звітний рік</label>
+                     <div class="year-filter-wrapper"></div>
+                </div>
+                <div>
+                     <label class="block text-sm font-medium text-gray-700 mb-2">Країна</label>
+                     <div class="country-filter-wrapper"></div>
+                </div>
+            </div>
+            <div>
+                 <label class="block text-sm font-medium text-gray-700 mb-2">Тип звітності</label>
+                 <div class="report-filter-wrapper"></div>
+            </div>`;
+        calendarFilters.querySelector('.year-filter-wrapper').appendChild(yearFilter);
+        calendarFilters.querySelector('.country-filter-wrapper').appendChild(countryFilter);
+        calendarFilters.querySelector('.report-filter-wrapper').appendChild(reportFilter);
+    }
+    
+    function updateAllCountrySelects(year) {
+        const standardWrapper = overviewFilters.querySelector('.standard-country-filter-wrapper');
+        if (standardWrapper) {
+            standardWrapper.innerHTML = '';
+            standardWrapper.appendChild(createCountryFilter(year, 'country-filter'));
+        }
+        
+        const baseCountryWrapper = overviewFilters.querySelector('.base-country-filter-wrapper');
+        if (baseCountryWrapper) {
+            baseCountryWrapper.innerHTML = '';
+            const baseSelect = createCountryFilter(year, 'base-country-filter');
+            baseSelect.querySelector('option[value="all"]').remove();
+            baseCountryWrapper.appendChild(baseSelect);
+        }
+        
+        const comparisonCheckboxesWrapper = overviewFilters.querySelector('.comparison-country-filter-wrapper');
+        if (comparisonCheckboxesWrapper) {
+            comparisonCheckboxesWrapper.innerHTML = '';
+            if (tpData[year]) {
+                const sortedCountries = Object.entries(tpData[year]).sort(([,a], [,b]) => a.name.localeCompare(b.name));
+                sortedCountries.forEach(([key, data]) => {
+                    comparisonCheckboxesWrapper.innerHTML += `
+                        <div>
+                            <input type="checkbox" id="compare-${key}" value="${key}" class="hidden comparison-checkbox">
+                            <label for="compare-${key}" class="cursor-pointer block w-full text-center p-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50">${data.name}</label>
+                        </div>
+                    `;
+                });
+            }
+        }
+    }
+
     function generateCountryCards() {
+        const year = overviewFilters.querySelector('.year-filter').value;
+        const yearData = tpData[year] || {};
+        
         countriesContainer.innerHTML = '';
-        const sortedCountries = Object.entries(tpData).sort(([,a], [,b]) => a.name.localeCompare(b.name));
+        const sortedCountries = Object.entries(yearData).sort(([,a], [,b]) => a.name.localeCompare(b.name));
+        
+        if (sortedCountries.length === 0) {
+            countriesContainer.innerHTML = '<p class="text-center text-gray-500">Немає даних для вибраного року.</p>';
+            return;
+        }
 
         sortedCountries.forEach(([countryKey, countryData]) => {
             const countryCard = document.createElement('div');
@@ -600,98 +397,203 @@ document.addEventListener('DOMContentLoaded', () => {
             countryCard.dataset.countryKey = countryKey;
             
             let requirementsHtml = '';
-            if (Object.keys(countryData.requirements).length > 0) {
-                 Object.entries(countryData.requirements).forEach(([reqKey, reqData]) => {
-                    requirementsHtml += `
-                        <div class="requirement-accordion border-t border-gray-200" data-req-key="${reqKey}">
-                            <button class="accordion-button w-full text-left p-4 md:p-5 flex justify-between items-center hover:bg-teal-50/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500 open">
-                                <span class="font-semibold text-lg text-gray-700">${reportKeys[reqKey] || reqKey}</span>
-                                <span class="arrow text-teal-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></span>
-                            </button>
-                            <div class="accordion-content bg-gray-50/70">
-                                <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-gray-600 text-sm">
-                                    ${Object.entries(requirementFields).map(([fieldKey, fieldLabel]) => 
-                                        reqData[fieldKey] ? `<div><strong class="font-semibold text-gray-800 block mb-1">${fieldLabel}:</strong>${reqData[fieldKey]}</div>` : ''
-                                    ).join('')}
-                                </div>
-                            </div>
-                        </div>`;
+            if (countryData.requirements && Object.keys(countryData.requirements).length > 0) {
+                 orderedReportKeys.forEach(reqKey => {
+                    if (countryData.requirements[reqKey]) {
+                        const reqData = countryData.requirements[reqKey];
+                        let detailsHtml = '';
+                        Object.entries(requirementFields).forEach(([fieldKey, fieldLabel]) => {
+                           if(reqData[fieldKey]) {
+                               detailsHtml += `<div><strong class="font-semibold text-gray-800 block mb-1">${fieldLabel}:</strong>${reqData[fieldKey]}</div>`;
+                           }
+                        });
+                        if (detailsHtml) {
+                            requirementsHtml += `
+                                <div class="requirement-accordion border-t border-gray-200" data-req-key="${reqKey}">
+                                    <button class="accordion-button open w-full text-left p-4 md:p-5 flex justify-between items-center hover:bg-teal-50/50">
+                                        <span class="font-semibold text-lg text-gray-700">${reportKeys[reqKey]}</span>
+                                        <span class="arrow text-teal-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></span>
+                                    </button>
+                                    <div class="accordion-content" style="max-height: 1000px;">
+                                        <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-gray-600 text-sm">${detailsHtml}</div>
+                                    </div>
+                                </div>`;
+                        }
+                    }
                 });
-            } else {
+            }
+            if (!requirementsHtml) {
                  requirementsHtml = `<div class="p-5 text-center text-gray-500">Дані потребують детального дослідження.</div>`;
             }
-
             countryCard.innerHTML = `<div class="p-5 bg-teal-600 text-white"><h3 class="text-2xl font-bold">${countryData.name}</h3></div><div class="bg-white">${requirementsHtml}</div>`;
             countriesContainer.appendChild(countryCard);
-            countryCard.querySelectorAll('.accordion-button').forEach(btn => btn.classList.add('open'));
         });
+        applyOverviewFilters();
+    }
+    
+    function parseDeadline(deadlineStr) {
+        if (!deadlineStr || typeof deadlineStr !== 'string') return null;
+        let processedStr = deadlineStr.toLowerCase().split('(')[0].trim();
+        processedStr = processedStr.replace('початок', '1');
+
+        const parts = processedStr.split(' ');
+        if (parts.length < 3) return null;
+
+        const day = parseInt(parts[0], 10);
+        const month = monthMap[parts[1]];
+        const year = parseInt(parts[2], 10);
+
+        if (!isNaN(day) && month !== undefined && !isNaN(year)) {
+            return new Date(year, month, day);
+        }
+        return null;
     }
 
     function renderComparisonTable() {
-        const baseCountryKey = baseCountryFilter.value;
-        const compareCountryKeys = Array.from(comparisonCountryFilterContainer.querySelectorAll('input:checked')).map(cb => cb.value);
-        const selectedCountries = [baseCountryKey, ...compareCountryKeys].filter((value, index, self) => self.indexOf(value) === index); // Ensure unique countries
-        const selectedReportType = document.querySelector('.filter-btn.active').dataset.filter;
+        const year = overviewFilters.querySelector('.year-filter').value;
+        const yearData = tpData[year] || {};
 
-        if (selectedCountries.length === 0 || !baseCountryKey) {
-            comparisonContainer.innerHTML = `<p class="text-center text-gray-500">Будь ласка, оберіть основну країну та країни для порівняння.</p>`;
+        const baseCountryKey = overviewFilters.querySelector('.base-country-filter')?.value;
+        const compareCountryKeys = Array.from(overviewFilters.querySelectorAll('.comparison-checkbox:checked')).map(cb => cb.value);
+        
+        if (!baseCountryKey) {
+            comparisonContainer.innerHTML = `<p class="text-center text-gray-500">Будь ласка, оберіть основну країну.</p>`;
             return;
         }
 
-        let tableHtml = `<div class="grid gap-px" style="grid-template-columns: minmax(150px, 1fr) repeat(${selectedCountries.length}, minmax(200px, 2fr));">`;
-        
-        // Header row
-        tableHtml += `<div class="bg-gray-200 font-bold p-3 sticky top-0 z-10">Вимога</div>`;
-        selectedCountries.forEach(key => {
-            tableHtml += `<div class="bg-gray-200 font-bold p-3 sticky top-0 z-10 text-center">${tpData[key].name}</div>`;
-        });
+        const selectedCountries = [baseCountryKey, ...compareCountryKeys].filter((v, i, a) => a.indexOf(v) === i);
+        const selectedReportType = overviewFilters.querySelector('.report-type-filter .active').dataset.filter;
 
-        // Data rows
-        Object.keys(reportKeys).filter(rt => rt !== 'all').forEach(reqKey => {
+        let tableHtml = `<div class="grid gap-px" style="grid-template-columns: minmax(150px, 1fr) repeat(${selectedCountries.length}, minmax(200px, 2fr));">`;
+        tableHtml += `<div class="bg-gray-200 font-bold p-3 sticky top-0 z-10">Вимога</div>`;
+        selectedCountries.forEach(key => { tableHtml += `<div class="bg-gray-200 font-bold p-3 sticky top-0 z-10 text-center">${yearData[key]?.name || key}</div>`; });
+        
+        orderedReportKeys.forEach(reqKey => {
             if (selectedReportType !== 'all' && selectedReportType !== reqKey) return;
-            
             const reqTitle = reportKeys[reqKey];
             tableHtml += `<div class="bg-teal-50 font-bold p-2 col-span-${selectedCountries.length + 1}">${reqTitle}</div>`;
             
-            // Determine all unique fields for this requirement type across selected countries
             const allFieldsForReq = new Set();
-            selectedCountries.forEach(countryKey => {
-                if(tpData[countryKey]?.requirements[reqKey]){
-                    Object.keys(tpData[countryKey].requirements[reqKey]).forEach(field => allFieldsForReq.add(field));
-                }
-            });
-
-            Array.from(allFieldsForReq).forEach(fieldKey => {
+            selectedCountries.forEach(countryKey => { if(yearData[countryKey]?.requirements[reqKey]){ Object.keys(yearData[countryKey].requirements[reqKey]).forEach(field => allFieldsForReq.add(field)); } });
+            
+            Array.from(allFieldsForReq).sort().forEach(fieldKey => {
+                if (fieldKey === 'title') return;
                 const fieldLabel = requirementFields[fieldKey] || fieldKey;
-                 tableHtml += `<div class="bg-gray-50 font-semibold p-2 text-sm">${fieldLabel}</div>`;
-                 selectedCountries.forEach(countryKey => {
-                    const value = tpData[countryKey]?.requirements[reqKey]?.[fieldKey] || 'Н/Д';
+                tableHtml += `<div class="bg-gray-50 font-semibold p-2 text-sm">${fieldLabel}</div>`;
+                selectedCountries.forEach(countryKey => {
+                    const value = yearData[countryKey]?.requirements[reqKey]?.[fieldKey] || 'Н/Д';
                     tableHtml += `<div class="bg-white p-2 text-sm">${value}</div>`;
-                 });
+                });
             });
         });
-
         tableHtml += '</div>';
         comparisonContainer.innerHTML = tableHtml;
     }
 
-    function applyFilters() {
-        const isComparisonMode = comparisonModeToggle.checked;
 
-        standardFiltersView.classList.toggle('hidden', isComparisonMode);
-        comparisonFiltersView.classList.toggle('hidden', !isComparisonMode);
+    function renderGanttChart() {
+        const year = calendarFilters.querySelector('.year-filter').value;
+        const selectedCountry = calendarFilters.querySelector('.country-filter').value;
+        const selectedReport = calendarFilters.querySelector('.report-type-filter .active').dataset.filter;
+        const yearData = tpData[year] || {};
+
+        let deadlines = [];
+        Object.entries(yearData).forEach(([countryKey, countryData]) => {
+            if (selectedCountry !== 'all' && selectedCountry !== countryKey) return;
+            Object.entries(countryData.requirements || {}).forEach(([reqKey, reqData]) => {
+                if (selectedReport !== 'all' && selectedReport !== reqKey) return;
+                const deadlineDate = parseDeadline(reqData.deadline);
+                if (deadlineDate) {
+                    deadlines.push({
+                        fullLabel: `${countryData.name} - ${reportKeys[reqKey]}`,
+                        date: deadlineDate,
+                    });
+                }
+            });
+        });
+        deadlines.sort((a, b) => a.date - b.date);
+
+        let startDate, endDate;
+        const selectedYearInt = parseInt(year, 10);
+        startDate = new Date(selectedYearInt, 11, 1); // December of the selected year
+        endDate = new Date(selectedYearInt + 1, 11, 31); // End of December of the next year
+        
+        ganttTitle.textContent = `Календар дедлайнів: Грудень ${selectedYearInt} - Грудень ${selectedYearInt + 1}`;
+        
+        let months = [];
+        let currentDate = new Date(startDate);
+        while (currentDate <= endDate) {
+            months.push(new Date(currentDate));
+            currentDate.setMonth(currentDate.getMonth() + 1);
+        }
+        
+        const today = new Date();
+        const currentDay = today.getDate();
+        const currentMonth = today.getMonth();
+
+        if (deadlines.length === 0) {
+            ganttContainer.innerHTML = `<p class="text-center col-span-full p-4">Не знайдено дедлайнів за обраними фільтрами.</p>`;
+            return;
+        }
+        
+        let ganttHtml = `<div class="gantt-chart" style="grid-template-columns: 180px repeat(${months.length}, 1fr);">`;
+        ganttHtml += `<div class="gantt-header sticky left-0 text-center">Тип звітності</div>`;
+        const monthNames = ["Січ", "Лют", "Бер", "Кві", "Тра", "Чер", "Лип", "Сер", "Вер", "Жов", "Лис", "Гру"];
+        
+        months.forEach(m => {
+             ganttHtml += `<div class="gantt-header">${monthNames[m.getMonth()]} ${String(m.getFullYear()).slice(-2)}</div>`;
+        });
+
+        deadlines.forEach(item => {
+            if (item.date < startDate || item.date > endDate) return;
+
+            const monthIndex = (item.date.getFullYear() - startDate.getFullYear()) * 12 + (item.date.getMonth() - startDate.getMonth());
+            
+            ganttHtml += `<div class="gantt-label" title="${item.fullLabel}">${item.fullLabel}</div>`;
+            for (let i = 0; i < months.length; i++) {
+                let barCellHtml = `<div class="gantt-bar-cell">`;
+                // Deadline bubble
+                if (i === monthIndex) {
+                    const daysInMonth = new Date(item.date.getFullYear(), item.date.getMonth() + 1, 0).getDate();
+                    const leftPosition = ((item.date.getDate() - 0.5) / daysInMonth) * 100;
+                    barCellHtml += `<div class="gantt-bubble" style="left: ${leftPosition}%;">
+                                     <span class="gantt-tooltip">${item.date.toLocaleDateString()}</span>
+                                 </div>`;
+                }
+                // Today marker
+                if (months[i].getMonth() === currentMonth) {
+                    const daysInMonth = new Date(months[i].getFullYear(), months[i].getMonth() + 1, 0).getDate();
+                    const leftPosition = ((currentDay - 0.5) / daysInMonth) * 100;
+                    barCellHtml += `<div class="today-marker" style="left: ${leftPosition}%;">
+                                        <span class="gantt-tooltip">Поточна дата</span>
+                                    </div>`;
+                }
+
+                barCellHtml += `</div>`;
+                ganttHtml += barCellHtml;
+            }
+        });
+        ganttHtml += `</div>`;
+        ganttContainer.innerHTML = ganttHtml;
+    }
+
+    function applyOverviewFilters() {
+        const isComparisonMode = comparisonModeToggle.checked;
+        
         countryDetailsView.classList.toggle('hidden', isComparisonMode);
         comparisonTableView.classList.toggle('hidden', !isComparisonMode);
-
+        overviewFilters.querySelector('#standard-filters').classList.toggle('hidden', isComparisonMode);
+        overviewFilters.querySelector('#comparison-filters').classList.toggle('hidden', !isComparisonMode);
+        
         if (isComparisonMode) {
             renderComparisonTable();
         } else {
-            const selectedCountryKey = countryFilter.value;
-            const selectedReportType = document.querySelector('.filter-btn.active').dataset.filter;
-
+            const selectedCountryKey = overviewFilters.querySelector('.country-filter').value;
+            const selectedReportType = overviewFilters.querySelector('.report-type-filter .active').dataset.filter;
+                
             document.querySelectorAll('.country-card').forEach(card => {
                 const cardCountryKey = card.dataset.countryKey;
-                const isVisible = selectedCountryKey === 'all' || cardCountryKey === cardCountryKey;
+                const isVisible = selectedCountryKey === 'all' || cardCountryKey === selectedCountryKey;
                 card.style.display = isVisible ? 'block' : 'none';
 
                 if (isVisible) {
@@ -702,35 +604,89 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             });
-            detailsTitle.textContent = selectedCountryKey !== 'all' ? `Детальний огляд по країні: ${tpData[selectedCountryKey].name}` : 'Детальний огляд по країнах';
+            
+            const currentYear = overviewFilters.querySelector('.year-filter').value;
+            if (selectedCountryKey !== 'all' && tpData[currentYear] && tpData[currentYear][selectedCountryKey]) {
+                detailsTitle.textContent = `Детальний огляд по країні: ${tpData[currentYear][selectedCountryKey].name}`;
+            } else {
+                detailsTitle.textContent = 'Детальний огляд по країнах';
+            }
         }
     }
 
-    function setupEventListeners() {
-        countriesContainer.addEventListener('click', e => {
-            const button = e.target.closest('.accordion-button');
-            if (button) button.classList.toggle('open');
-        });
+    function handleFilterChange(e) {
+        const target = e.target;
+        const container = target.closest('section');
+        if (!container) return;
 
-        reportTypeFilterContainer.addEventListener('click', e => {
-             const button = e.target.closest('.filter-btn');
-             if (button) {
-                reportTypeFilterContainer.querySelector('.active').classList.remove('active');
-                button.classList.add('active');
-                applyFilters();
-             }
-        });
-        
-        comparisonModeToggle.addEventListener('change', applyFilters);
-        countryFilter.addEventListener('change', applyFilters);
-        baseCountryFilter.addEventListener('change', renderComparisonTable);
-        comparisonCountryFilterContainer.addEventListener('change', renderComparisonTable);
+        if (target.matches('.year-filter')) {
+            const newYear = target.value;
+            if (activeTab === 'overview') {
+                updateAllCountrySelects(newYear);
+                generateCountryCards();
+            } else { 
+                const calendarCountryWrapper = calendarFilters.querySelector('.country-filter-wrapper');
+                calendarCountryWrapper.innerHTML = '';
+                calendarCountryWrapper.appendChild(createCountryFilter(newYear, 'country-filter'));
+                renderGanttChart();
+            }
+        } else if (target.matches('.country-filter') || target.matches('.base-country-filter') || target.matches('.comparison-checkbox')) {
+             if (activeTab === 'overview') applyOverviewFilters();
+             else renderGanttChart();
+        } else if (target.closest('.filter-btn')) {
+            const button = target.closest('.filter-btn');
+            container.querySelector('.report-type-filter .active')?.classList.remove('active');
+            button.classList.add('active');
+            if (activeTab === 'overview') applyOverviewFilters();
+            else renderGanttChart();
+        }
     }
 
-    // Initialisation
-    populateFilters();
+
+    function setupEventListeners() {
+        tabs.forEach(button => {
+            button.addEventListener('click', () => {
+                activeTab = button.dataset.tab;
+                tabs.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                
+                Object.values(tabContents).forEach(content => content.classList.add('hidden'));
+                tabContents[activeTab].classList.remove('hidden');
+
+                if (activeTab === 'calendar') {
+                    renderGanttChart();
+                } else {
+                    applyOverviewFilters();
+                }
+            });
+        });
+
+        overviewFilters.addEventListener('click', handleFilterChange);
+        overviewFilters.addEventListener('change', handleFilterChange);
+        calendarFilters.addEventListener('click', handleFilterChange);
+        calendarFilters.addEventListener('change', handleFilterChange);
+        
+        comparisonModeToggle.addEventListener('change', applyOverviewFilters);
+
+        document.body.addEventListener('click', e => {
+            const button = e.target.closest('.accordion-button');
+            if (button) {
+                 button.classList.toggle('open');
+                const content = button.nextElementSibling;
+                if (content.style.maxHeight !== '0px' && content.style.maxHeight) {
+                    content.style.maxHeight = '0px';
+                } else {
+                    content.style.maxHeight = content.scrollHeight + "px";
+                }
+            }
+        });
+    }
+
+    // --- Initialisation ---
+    const initialYear = Object.keys(tpData).sort((a,b) => b-a)[0];
+    populateOverviewFilters(initialYear);
+    populateCalendarFilters(initialYear);
     generateCountryCards();
-    applyFilters();
     setupEventListeners();
 });
 </script>
