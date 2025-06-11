@@ -99,7 +99,6 @@
             cursor: pointer;
             box-shadow: 0 0 5px rgba(0,0,0,0.2);
         }
-        /* *** MODIFICATION: Increased z-index on hover to fix tooltip overlap *** */
         .gantt-bubble:hover {
             z-index: 15;
         }
@@ -133,7 +132,9 @@
             transform: translateX(-50%);
             cursor: pointer;
         }
-        /* *** MODIFICATION: Added hover state for today-marker tooltip *** */
+        .today-marker:hover {
+            z-index: 15;
+        }
         .today-marker:hover .gantt-tooltip {
             opacity: 1;
             visibility: visible;
@@ -692,4 +693,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 </body>
-</html>
+</ht
